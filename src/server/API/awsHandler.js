@@ -6,7 +6,7 @@ class AwsHandler {
       this.regions = {
          'O': 'us-west-2',
          'S': 'ap-southeast-1',
-         'F': 'eu-central-1' 
+         'F': 'eu-central-1'
       }
    }
 
@@ -25,11 +25,10 @@ class AwsHandler {
          var params = {
             DryRun: false
          };
-         
 
          ec2.describeInstances(params, (err, data) => {
             if (err) {
-               console.log(err); 
+               console.log(err);
             }
             for (let inst of data.Reservations) {
                var tempInst = {
@@ -39,10 +38,9 @@ class AwsHandler {
                }
 
                for (let tag of inst.Instances[0].Tags) {
-                 tempInst[tag.Key] = tag.Value 
+                 tempInst[tag.Key] = tag.Value
                }
-               console.log("AWS returned new instance.");
-               socket.emit('resHosts', tempInst);
+               socket.emit('resAllHosts', tempInst);
             }
          });
       }
@@ -73,7 +71,7 @@ function createTags(res) {
          type = 'eventron'
 
       var params = {
-         Resources: [ instance.instance_id ], 
+         Resources: [ instance.instance_id ],
          Tags: [
             {
                Key: "Upstream",
@@ -137,7 +135,7 @@ function getIP(name) {
    };
 
    ec2.describeInstances(params, (err, data) => {
-      
+
       for (let inst of data.Reservations) {
          for (let tag of inst.Instances[0].Tags) {
             if (tag.Value == name) {
@@ -159,10 +157,10 @@ function describeInstance(instance_id) {
    ec2.describeInstances(params, function(err, data) {
       if (err) console.log(err, err.stack); // an error occurred
       else     console.log(data.Reservations[0].Instances);           // successful response
-   });   
+   });
 }
 
 getIP('OM-fullnode-1');
 */
 
-module.exports = AwsHandler 
+module.exports = AwsHandler

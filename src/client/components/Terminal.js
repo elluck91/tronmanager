@@ -1,32 +1,36 @@
 import React, { Component } from 'react';
 import '../stylesheets/Terminal.css';
-import openSocket from 'socket.io-client';
-import { subscribeToCmdOutput, subscribeToPS } from '../services/subscribe';
+import { Subscriber } from '../services/subscribe';
 
 class Terminal extends Component {
    constructor(props) {
       super(props);
+
       this.state = {
-         output: ['hello'],
+         output: [],
          cmd: "",
-         ps: {
-            'one': "",
-            'two': "",
-            'three': "",
-            'four': "",
-            'five': ""
-         },
-         hosts: [],
+         ip: "34.216.166.116"
       };
 
-      this.handleCommand = this.handleCommand.bind(this);
       this.handleInputChange = this.handleInputChange.bind(this);
+      this.handleIpChange = this.handleIpChange.bind(this);
       this.updateOutput = this.updateOutput.bind(this);
+      this.handleExecuteCmd = this.handleExecuteCmd.bind(this);
+      this.handleTopProcessesBy = this.handleTopProcessesBy.bind(this);
+      this.handleAllHosts = this.handleAllHosts.bind(this);
+      this.handleLatestBlock = this.handleLatestBlock.bind(this);
 
-      this.updatePS = this.updatePS.bind(this);
-      this.handleGetPS = this.handleGetPS.bind(this);
+      this.sub = new Subscriber();
+      this.sub.subscribeToExecuteCmd(this.updateOutput);
+      this.sub.subscribeToTopProcessesBy(this.updateOutput);
+      this.sub.subscribeToAllHosts(this.updateOutput);
+      this.sub.subscribeToLatestBlock(this.updateOutput);
+   }
 
-      this.handleGetHosts = this.handleGetHosts.bind(this);
+   clearOutput() {
+      this.setState({
+         output: []
+      });
    }
 
    handleInputChange(event) {
@@ -35,51 +39,84 @@ class Terminal extends Component {
       });
    }
 
-   updateOutput(err, newOutput) {
-      this.setState(prevState => ({
-         output: [...prevState.output, newOutput]
-      }));
-      var objDiv = document.getElementById("screen");
-      objDiv.scrollTop = objDiv.scrollHeight;
+   handleIpChange(event) {
+       this.setState({
+           ip: event.target.value
+       })
    }
 
-   updatePS(err, psResult) {
-      this.setState({
-         ps: psResult
-      });
-   } 
+   updateOutput(err, newOutput) {
+       this.setState({
+           output: [...this.state.output, JSON.stringify(newOutput)]
+       });
+   }
 
-   handleCommand(event) {
+   handleExecuteCmd(event) {
       event.preventDefault();
-      subscribeToCmdOutput(this.updateOutput, this.state.cmd);
+      this.clearOutput();
+      this.sub.executeCmd(this.state);
       this.setState({
          cmd: ""
       })
    }
 
-   handleGetPS() {
-      subscribeToPS(this.updatePS, '54.188.41.116');
+   handleTopProcessesBy(event) {
+       event.preventDefault();
+       this.clearOutput();
+       this.sub.getTopProcessesBy(this.state.ip);
    }
 
-   handleGetHosts() {
-      const socket = openSocket('http://localhost:3001');
-      socket.on('resHosts', output => {
-         console.log('updating stete with new hosts');
-         this.setState(prevState => ({
-            hosts: [...prevState.hosts, output]
-         })); 
-      });
-      
-      socket.emit('reqHosts', 'us-west-2');
+   handleAllHosts() {
+       this.clearOutput();
+       this.sub.getAllHosts()
    }
-   
+
+   handleLatestBlock(event) {
+       event.preventDefault();
+       this.clearOutput();
+       this.sub.getLatestBlock(this.state.ip);
+   }
+
    render() {
-      return (
-         <div> 
-            <p>Hosts: {JSON.stringify(this.state.hosts)}</p>
-            <button onClick={this.handleGetHosts}>
-               Host us-west-2 hosts.
+       return (
+           <div>
+            <p>Output:</p>
+                <div className="shell-body">
+                    {this.state.output.length ? this.state.output.map((item, i) => (<li key={i}>{Object.values(item)}</li>)) : '----------'}
+                </div>
+            {/* ExecuteCmd */}
+            <form onSubmit={this.handleExecuteCmd}>
+                <label>
+                    Cmd:
+                    <input type="text" value={this.state.cmd} onChange={this.handleInputChange} />
+                    IP:
+                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                </label>
+                <input type="submit" value="ExecuteCmd" />
+            </form>
+
+            {/* TopProcessesBy */}
+            <form onSubmit={this.handleTopProcessesBy}>
+                <label>
+                    IP:
+                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                </label>
+                <input type="submit" value="TopProcessesBy" />
+            </form>
+
+            {/* AllHosts */}
+            <button onClick={this.handleAllHosts}>
+               getAllHosts
             </button>
+
+            {/* LatestBlock */}
+            <form onSubmit={this.handleLatestBlock}>
+                <label>
+                    IP:
+                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                </label>
+                <input type="submit" value="LatestBlock" />
+            </form>
          </div>
       );
    }
