@@ -19,12 +19,14 @@ class Terminal extends Component {
       this.handleTopProcessesBy = this.handleTopProcessesBy.bind(this);
       this.handleAllHosts = this.handleAllHosts.bind(this);
       this.handleLatestBlock = this.handleLatestBlock.bind(this);
+      this.handleAllCacheNodes = this.handleAllCacheNodes.bind(this);
 
       this.sub = new Subscriber();
       this.sub.subscribeToExecuteCmd(this.updateOutput);
       this.sub.subscribeToTopProcessesBy(this.updateOutput);
       this.sub.subscribeToAllHosts(this.updateOutput);
       this.sub.subscribeToLatestBlock(this.updateOutput);
+      this.sub.subscribeToAllCacheNodes(this.updateOutput);
    }
 
    clearOutput() {
@@ -46,6 +48,7 @@ class Terminal extends Component {
    }
 
    updateOutput(err, newOutput) {
+       console.log(newOutput);
        this.setState({
            output: [...this.state.output, JSON.stringify(newOutput)]
        });
@@ -75,6 +78,11 @@ class Terminal extends Component {
        event.preventDefault();
        this.clearOutput();
        this.sub.getLatestBlock(this.state.ip);
+   }
+
+   handleAllCacheNodes() {
+       this.clearOutput();
+       this.sub.getAllCacheNodes()
    }
 
    render() {
@@ -117,6 +125,11 @@ class Terminal extends Component {
                 </label>
                 <input type="submit" value="LatestBlock" />
             </form>
+
+            {/* AllCacheNodes */}
+            <button onClick={this.handleAllCacheNodes}>
+               getAllCacheNodes
+            </button>
          </div>
       );
    }

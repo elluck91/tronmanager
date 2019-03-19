@@ -7,7 +7,7 @@ class NodeManager {
         this.nodeStatus = {};
     }
 
-    static config(ip) {
+    config(ip) {
         return {
            user: 'ec2-user',
            host: ip,
@@ -74,7 +74,7 @@ class NodeManager {
    }
 
     getLatestBlock(ip, socket) {
-       console.log()
+       console.log('trex received ip:', ip)
        axios.get('http://' + ip + "/wallet/getnowblock")
         .then(function (response) {
             // handle success
@@ -82,6 +82,10 @@ class NodeManager {
                 'number': response.data.block_header.raw_data.number,
                 'timestamp': response.data.block_header.raw_data.timestamp
             });
+        })
+        .catch(error => {
+            console.log(error)
+            socket.emit('resLatestBlock', 'error')
         })
     }
 

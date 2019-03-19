@@ -41,6 +41,16 @@ class Subscriber {
     getLatestBlock(ip) {
         this.socket.emit('reqLatestBlock', ip);
     }
+
+    subscribeToAllCacheNodes(updateClientView) {
+        this.socket.on('resAllCacheNodes', output => {
+            updateClientView(null, output);
+        });
+    }
+
+    getAllCacheNodes() {
+        this.socket.emit('reqAllCacheNodes');
+    }
 }
 
 export { Subscriber }
