@@ -1,37 +1,43 @@
-require('dotenv').config({ path: './.env' })
-
 var app = require('express')();
 var http = require('http').createServer(app);
-var readline = require('readline');
-const { spawn } = require('child_process');
-var exec = require('ssh-exec');
-var fs = require('fs');
-var request = require('request');
-var trex = require('./API/tronExecutor');
+var aws = require('./awsHandler');
+var trex = require('./nodeManager');
 
 // Socket for continuous stream of cmd output
 const server = require('socket.io')(http)
 
 server.on('connection', (socket) => {
     console.log('user connected')
+
+    socket.on('reqHealthCheck', (data.ip) => {
+        const healthStatus = trex.getHealthUpdate(data.ip, socket);
+
+        if (!healthStatus.isHealthy) {
+            alertTronForce(healthStatus);
+        }
+        socket.emit('resHealthCheck', healthStatus);
+    })
+
    // Request info about all hosts
-   socket.on('reqAllHosts', (region) => {
-      trex.getAllHosts(socket);
+   socket.on('reqAllHosts', () => {
+      aws.getAllHosts(socket);
    });
+
 
    // Remote execution requested
    socket.on('reqExecuteCmd', (data) => {
-     trex.customExecuteCmd(data, socket);
+     trex.customExecuteCmd(data.cmd, data.ip, socket);
    });
 
    // Metrics requested
    socket.on('reqTopProcessesBy', (data) => {
-     trex.getTopProcessesBy(data, socket);
+     trex.getTopProcessesBy('CPU', data, socket);
    });
 
    // Latest block requested
    socket.on('reqLatestBlock', (data) => {
-       trex.getLatestBlock(data, socket);
+       let ip_add = aws.getInstance(data);
+       trex.getLatestBlock(data['Instance IP'], socket);
    })
 
    socket.on('disconnect', function(){

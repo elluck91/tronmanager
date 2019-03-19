@@ -2,7 +2,10 @@ var exec = require('ssh-exec')
 const axios = require('axios');
 const fs = require('fs');
 
-class RemoteExecutor {
+class NodeManager {
+    constructor() {
+        this.nodeStatus = {};
+    }
 
     static config(ip) {
         return {
@@ -12,8 +15,26 @@ class RemoteExecutor {
         };
     }
 
+    checkNodeHealth(ip, socket) {
+        let healthStatus = {
+            'isSyncing' : isSyncing(ip),
+        }
+
+        healthStatus.isHealthy = healthStatus.isSyncing;
+
+        return healthStatus;
+    }
+
+    isSyncing(ip) {
+        return timestampUpdates(ip) && blockUpdates(ip);
+    }
+
+    timestampUpdates(ip) {
+        return (nodeStats[ip].getTime(-1) != nodeStats[up].getTime(-2));
+    }
+
    // Remote request to get top 5 processes sorted descendingly by CPU usage
-   static getTopProcessesBy(metric, ip, socket) {
+   getTopProcessesBy(metric, ip, socket) {
 
       // linux distros prepend metrics with '%'
       let m = metric == 'CPU' ? '%CPU' : '%MEM';
@@ -27,31 +48,24 @@ class RemoteExecutor {
 
       exec(cmd, this.config(ip), (err, stdout, stderr) => {
          if (err) {
-             console.log('err:', err)
             socket.emit('resTopProcessesBy', err);
          } else if (stdout) {
-             console.log('stdout:', stdout)
             socket.emit('resTopProcessesBy', this.processPSOutput(stdout));
          } else {
-             console.log('stderr:', stderr)
              socket.emit('resTopProcessesBy', stderr);
 
          }
       });
    }
 
-    static customExecuteCmd(cmd, ip, socket) {
+    customExecuteCmd(cmd, ip, socket) {
        exec(cmd, this.config(ip), (err, stdout, stderr) => {
           if (err) {
-             console.log('Err:', err);
              socket.emit('resExecuteCmd', err.toString());
           } else if (stdout) {
-             console.log('Stdout:', stdout);
              let processedData = this.processCmdOutput(stdout);
-             console.log('Processed data:', processedData)
              socket.emit('resExecuteCmd', this.processCmdOutput(stdout));
           } else {
-              console.log('Stderr:', stderr);
              socket.emit('resExecuteCmd', stderr.toString());
           }
         });
@@ -59,11 +73,10 @@ class RemoteExecutor {
 
    }
 
-   static getLatestBlock(ip, socket) {
+    getLatestBlock(ip, socket) {
+       console.log()
        axios.get('http://' + ip + "/wallet/getnowblock")
         .then(function (response) {
-            console.log('Do we even get here?')
-            console.log(response.data.block_header.raw_data)
             // handle success
             socket.emit('resLatestBlock', {
                 'number': response.data.block_header.raw_data.number,
@@ -72,9 +85,8 @@ class RemoteExecutor {
         })
     }
 
-   // Utilities
-
-   static processPSOutput(output) {
+    // Utilities
+    processPSOutput(output) {
       // response formatting
       var result = output.split('\n').splice(0,5);
       var response = {};
@@ -90,11 +102,11 @@ class RemoteExecutor {
       return response;
    }
 
-   static processCmdOutput(output) {
+    processCmdOutput(output) {
        // response formatting
        var result = output.split('\n');
        return result.splice(0, result.length - 1);
    }
 }
 
-module.exports = RemoteExecutor;
+module.exports = new NodeManager();

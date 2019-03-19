@@ -9,7 +9,7 @@ class Terminal extends Component {
       this.state = {
          output: [],
          cmd: "",
-         ip: "34.216.166.116"
+         ip: "OX-fullnode-1"
       };
 
       this.handleInputChange = this.handleInputChange.bind(this);
