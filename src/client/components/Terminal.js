@@ -9,7 +9,7 @@ class Terminal extends Component {
       this.state = {
          output: [],
          cmd: "",
-         ip: "OX-fullnode-1"
+         ip: "oregon-redis-1-001"
       };
 
       this.handleInputChange = this.handleInputChange.bind(this);
@@ -20,6 +20,7 @@ class Terminal extends Component {
       this.handleAllHosts = this.handleAllHosts.bind(this);
       this.handleLatestBlock = this.handleLatestBlock.bind(this);
       this.handleAllCacheNodes = this.handleAllCacheNodes.bind(this);
+      this.handleCacheNodeMetrics = this.handleCacheNodeMetrics.bind(this);
 
       this.sub = new Subscriber();
       this.sub.subscribeToExecuteCmd(this.updateOutput);
@@ -27,6 +28,7 @@ class Terminal extends Component {
       this.sub.subscribeToAllHosts(this.updateOutput);
       this.sub.subscribeToLatestBlock(this.updateOutput);
       this.sub.subscribeToAllCacheNodes(this.updateOutput);
+      this.sub.subscribeToCacheNodeMetrics(this.updateOutput);
    }
 
    clearOutput() {
@@ -85,6 +87,12 @@ class Terminal extends Component {
        this.sub.getAllCacheNodes()
    }
 
+   handleCacheNodeMetrics(event) {
+       event.preventDefault();
+       this.clearOutput();
+       this.sub.getCacheNodeMetrics(this.state.ip);
+   }
+
    render() {
        return (
            <div>
@@ -130,6 +138,15 @@ class Terminal extends Component {
             <button onClick={this.handleAllCacheNodes}>
                getAllCacheNodes
             </button>
+
+            {/* CacheNodeMetrics */}
+            <form onSubmit={this.handleCacheNodeMetrics}>
+                <label>
+                    cacheNodeId:
+                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                </label>
+                <input type="submit" value="getCacheNodeMetrics" />
+            </form>
          </div>
       );
    }

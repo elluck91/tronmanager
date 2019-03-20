@@ -46,6 +46,11 @@ server.on('connection', (socket) => {
       aws.getAllCacheNodes(socket);
    });
 
+   // Request cacheNode metrics
+   socket.on('reqCacheNodeMetrics', (cacheNodeId) => {
+       aws.getCacheNodeMetrics(cacheNodeId, socket);
+   });
+
    socket.on('disconnect', function(){
       console.log('user disconnected');
    });

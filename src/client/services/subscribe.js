@@ -51,6 +51,14 @@ class Subscriber {
     getAllCacheNodes() {
         this.socket.emit('reqAllCacheNodes');
     }
+
+    subscribeToCacheNodeMetrics(updateClientView) {
+        this.socket.on('resCacheNodeMetrics', output => updateClientView(null, output));
+    }
+
+    getCacheNodeMetrics(cacheNodeId) {
+        this.socket.emit('reqCacheNodeMetrics', cacheNodeId);
+    }
 }
 
 export { Subscriber }
