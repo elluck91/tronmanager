@@ -9,7 +9,8 @@ class Terminal extends Component {
       this.state = {
          output: [],
          cmd: "",
-         ip: "oregon-redis-1-001"
+         ip: "OM-fullnode-1"
+         //ip: "oregon-redis-1-001"
       };
 
       this.handleInputChange = this.handleInputChange.bind(this);
@@ -19,16 +20,18 @@ class Terminal extends Component {
       this.handleTopProcessesBy = this.handleTopProcessesBy.bind(this);
       this.handleAllHosts = this.handleAllHosts.bind(this);
       this.handleLatestBlock = this.handleLatestBlock.bind(this);
-      this.handleAllCacheNodes = this.handleAllCacheNodes.bind(this);
       this.handleCacheNodeMetrics = this.handleCacheNodeMetrics.bind(this);
+      this.handleCheckFullNodeHealth = this.handleCheckFullNodeHealth.bind(this);
+      this.handleAllFullNodes = this.handleAllFullNodes.bind(this);
 
       this.sub = new Subscriber();
       this.sub.subscribeToExecuteCmd(this.updateOutput);
       this.sub.subscribeToTopProcessesBy(this.updateOutput);
       this.sub.subscribeToAllHosts(this.updateOutput);
       this.sub.subscribeToLatestBlock(this.updateOutput);
-      this.sub.subscribeToAllCacheNodes(this.updateOutput);
       this.sub.subscribeToCacheNodeMetrics(this.updateOutput);
+      this.sub.subscribeToCheckFullNodeHealth(this.updateOutput);
+      this.sub.subscribeToFullNodes(this.updateOutput);
    }
 
    clearOutput() {
@@ -84,13 +87,24 @@ class Terminal extends Component {
 
    handleAllCacheNodes() {
        this.clearOutput();
-       this.sub.getAllCacheNodes()
+       this.sub.getCacheNodes()
    }
 
    handleCacheNodeMetrics(event) {
        event.preventDefault();
        this.clearOutput();
        this.sub.getCacheNodeMetrics(this.state.ip);
+   }
+
+   handleCheckFullNodeHealth(event) {
+       event.preventDefault();
+       this.clearOutput();
+       this.sub.checkFullNodeHealth(this.state.ip)
+   }
+
+   handleAllFullNodes() {
+       this.clearOutput();
+       this.sub.getFullNodes()
    }
 
    render() {
@@ -105,7 +119,7 @@ class Terminal extends Component {
                 <label>
                     Cmd:
                     <input type="text" value={this.state.cmd} onChange={this.handleInputChange} />
-                    IP:
+                    Node Name:
                     <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
                 </label>
                 <input type="submit" value="ExecuteCmd" />
@@ -114,7 +128,7 @@ class Terminal extends Component {
             {/* TopProcessesBy */}
             <form onSubmit={this.handleTopProcessesBy}>
                 <label>
-                    IP:
+                    Node Name:
                     <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
                 </label>
                 <input type="submit" value="TopProcessesBy" />
@@ -128,7 +142,7 @@ class Terminal extends Component {
             {/* LatestBlock */}
             <form onSubmit={this.handleLatestBlock}>
                 <label>
-                    IP:
+                    Node Name:
                     <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
                 </label>
                 <input type="submit" value="LatestBlock" />
@@ -147,6 +161,20 @@ class Terminal extends Component {
                 </label>
                 <input type="submit" value="getCacheNodeMetrics" />
             </form>
+
+            {/* CheckFullnodeHealth */}
+            <form onSubmit={this.handleCheckFullNodeHealth}>
+                <label>
+                    Node Name:
+                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                </label>
+                <input type="submit" value="CheckFullNodeHealth" />
+            </form>
+
+            {/* getAllFullNodes */}
+            <button onClick={this.handleAllFullNodes}>
+               getAllFullNodes
+            </button>
          </div>
       );
    }

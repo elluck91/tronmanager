@@ -9,46 +9,114 @@ const server = require('socket.io')(http)
 server.on('connection', (socket) => {
     console.log('user connected')
 
-    socket.on('reqHealthCheck', (data) => {
-        const healthStatus = trex.getHealthUpdate(data.ip, socket);
-
-        if (!healthStatus.isHealthy) {
-            alertTronForce(healthStatus);
-        }
-        socket.emit('resHealthCheck', healthStatus);
-    });
-
    // Request info about all hosts
    socket.on('reqAllHosts', () => {
-      aws.getAllHosts(socket);
+      aws.getAllHosts((node) => {
+          trex.storeNode(node);
+          socket.emit('resAllHosts', node);
+      });
+
+      aws.getAllCacheNodes((node) => {
+          trex.storeNode(node);
+          socket.emit('resAllHosts', node);
+      })
+   });
+
+   socket.on('reqFullNodes', () => {
+       socket.emit('resFullNodes', trex.getFullNodes());
+   })
+
+   socket.on('reqEventrons', () => {
+       socket.emit('resEventrons', trex.getEventrons());
+   })
+
+   socket.on('reqBlockParsers', () => {
+       socket.emit('resBlockParsers', trex.getBlockparsers());
+   })
+
+   socket.on('reqZoneProxies', () => {
+       socket.emit('resZoneProxies', trex.getZoneProxies());
+   })
+
+   socket.on('reqCacheNodes', () => {
+       socket.emit('resCacheNodes', trex.getCacheNodes())
+   })
+
+   // Request cacheNode metrics
+   socket.on('reqCacheNodeMetrics', (cacheNodeId) => {
+
+       aws.getCacheNodeMetrics(cacheNodeId, (err, nodeMetrics) => {
+           if (err) {
+               socket.emit('resCacheNodeMetrics', {
+                   'id': cacheNodeId,
+                   'status': 404,
+               });
+           } else {
+               socket.emit('resCacheNodeMetrics', {
+                   'id': cacheNodeId,
+                   'status': 200,
+                   'data': trex.updateCacheNode(cacheNodeId, nodeMetrics)
+               });
+           }
+       });
+   });
+
+   // Metrics requested
+   socket.on('reqTopProcessesBy', (nodeId) => {
+       let topProcesses = trex.getTopProcessesBy('CPU', nodeId);
+       if (!topProcesses) {
+           socket.emit('resTopProcessesBy', {
+               'id': nodeId,
+               'status': 404
+           });
+       } else {
+           socket.emit('resTopProcessesBy', {
+               'id': nodeId,
+               'status': 200,
+               'data': latestBlock
+           });
+       }
+   });
+
+   // Latest block requested
+   socket.on('reqLatestBlock', (nodeId) => {
+       let latestBlock = trex.getLatestBlock(nodeId);
+
+       if (!latestBlock) {
+           socket.emit('resLatestBlock', {
+               'id': nodeId,
+               'status': 404
+           })
+       }
+       socket.emit('resLatestBlock', {
+           'id': nodeId,
+           'status': 200,
+           'data': latestBlock
+       });
+   });
+
+   socket.on('reqCheckFullNodeHealth', (nodeId) => {
+       const healthStatus = trex.checkFullNodeHealth(nodeId);
+
+       if (!healthStatus) {
+           socket.emit('resCheckFullNodeHealth', {
+               'id': nodeId,
+               'status': 404
+           })
+       } else if (healthStatus.isSick) {
+           trex.alertTronForce(healthStatus);
+       }
+       socket.emit('resCheckFullNodeHealth', {
+           'id': nodeId,
+           'status': 200,
+           'data': healthStatus
+       });
    });
 
    // Remote execution requested
    socket.on('reqExecuteCmd', (data) => {
        let ip_addr = aws.getInstance(data.ip);
        trex.customExecuteCmd(data.cmd, ip_addr['Instance IP'], socket);
-   });
-
-   // Metrics requested
-   socket.on('reqTopProcessesBy', (ip) => {
-       let ip_addr = aws.getInstance(ip);
-     trex.getTopProcessesBy('CPU', ip_addr['Instance IP'], socket);
-   });
-
-   // Latest block requested
-   socket.on('reqLatestBlock', (data) => {
-       let ip_addr = aws.getInstance(data);
-       trex.getLatestBlock(ip_addr['Instance IP'], socket);
-   });
-
-   // Request info about all cache nodes
-   socket.on('reqAllCacheNodes', () => {
-      aws.getAllCacheNodes(socket);
-   });
-
-   // Request cacheNode metrics
-   socket.on('reqCacheNodeMetrics', (cacheNodeId) => {
-       aws.getCacheNodeMetrics(cacheNodeId, socket);
    });
 
    socket.on('disconnect', function(){

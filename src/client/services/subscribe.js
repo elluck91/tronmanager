@@ -5,6 +5,88 @@ class Subscriber {
         this.socket = openSocket('http://localhost:3001');
     }
 
+    subscribeToAllHosts(updateClientView) {
+       this.socket.on('resAllHosts', output => updateClientView(null, output));
+    }
+
+    getAllHosts() {
+        this.socket.emit('reqAllHosts');
+    }
+
+    subscribeToFullNodes(updateClientView) {
+       this.socket.on('resFullNodes', output => updateClientView(null, output));
+    }
+
+    getFullNodes() {
+        this.socket.emit('reqFullNodes');
+    }
+
+    subscribeToEventrons(updateClientView) {
+       this.socket.on('resEventrons', output => updateClientView(null, output));
+    }
+
+    getEventrons() {
+        this.socket.emit('reqEventrons');
+    }
+
+    subscribeToBlockParsers(updateClientView) {
+       this.socket.on('resBlockParsers', output => updateClientView(null, output));
+    }
+
+    getBlockParsers() {
+        this.socket.emit('reqBlockParsers');
+    }
+
+    subscribeToZoneProxies(updateClientView) {
+       this.socket.on('resZoneProxies', output => updateClientView(null, output));
+    }
+
+    getZoneProxies() {
+        this.socket.emit('reqZoneProxies');
+    }
+
+    subscribeToCacheNodes(updateClientView) {
+       this.socket.on('resCacheNodes', output => updateClientView(null, output));
+    }
+
+    getCacheNodes() {
+        this.socket.emit('reqCacheNodes');
+    }
+
+    subscribeToCacheNodeMetrics(updateClientView) {
+        this.socket.on('resCacheNodeMetrics', output => updateClientView(null, output));
+    }
+
+    getCacheNodeMetrics(cacheNodeId) {
+        this.socket.emit('reqCacheNodeMetrics', cacheNodeId);
+    }
+
+    subscribeToTopProcessesBy(updateClientView) {
+       this.socket.on('resTopProcessesBy', output => updateClientView(null, output));
+    }
+
+    getTopProcessesBy(nodeId) {
+        this.socket.emit('reqTopProcessesBy', nodeId);
+    }
+
+    subscribeToLatestBlock(updateClientView) {
+       this.socket.on('resLatestBlock', output => {
+           updateClientView(null, output);
+       });
+    }
+
+    getLatestBlock(nodeId) {
+        this.socket.emit('reqLatestBlock', nodeId);
+    }
+
+    subscribeToCheckFullNodeHealth(updateClientView) {
+        this.socket.emit('resCheckFullNodeHealth', output => updateClientView(null, output));
+    }
+
+    checkFullNodeHealth(nodeId) {
+        this.socket.emit('reqCheckFullNodeHealth', nodeId);
+    }
+
     subscribeToExecuteCmd(updateClientView) {
        // defines how to update client view when new output appears
        this.socket.on('resExecuteCmd', output => {
@@ -14,50 +96,6 @@ class Subscriber {
 
     executeCmd(data) {
         this.socket.emit('reqExecuteCmd', data);
-    }
-
-    subscribeToTopProcessesBy(updateClientView) {
-       this.socket.on('resTopProcessesBy', output => updateClientView(null, output));
-    }
-
-    getTopProcessesBy(ip) {
-        this.socket.emit('reqTopProcessesBy', ip);
-    }
-
-    subscribeToAllHosts(updateClientView) {
-       this.socket.on('resAllHosts', output => updateClientView(null, output));
-    }
-
-    getAllHosts() {
-        this.socket.emit('reqAllHosts');
-    }
-
-    subscribeToLatestBlock(updateClientView) {
-       this.socket.on('resLatestBlock', output => {
-           updateClientView(null, output);
-       });
-    }
-
-    getLatestBlock(ip) {
-        this.socket.emit('reqLatestBlock', ip);
-    }
-
-    subscribeToAllCacheNodes(updateClientView) {
-        this.socket.on('resAllCacheNodes', output => {
-            updateClientView(null, output);
-        });
-    }
-
-    getAllCacheNodes() {
-        this.socket.emit('reqAllCacheNodes');
-    }
-
-    subscribeToCacheNodeMetrics(updateClientView) {
-        this.socket.on('resCacheNodeMetrics', output => updateClientView(null, output));
-    }
-
-    getCacheNodeMetrics(cacheNodeId) {
-        this.socket.emit('reqCacheNodeMetrics', cacheNodeId);
     }
 }
 

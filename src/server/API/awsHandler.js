@@ -4,46 +4,6 @@ const redisParams = {MaxRecords: 100,ShowCacheNodeInfo: true};
 const regions = {'O': 'us-west-2','S': 'ap-southeast-1','F': 'eu-central-1'}
 
 class AwsHandler {
-   constructor() {
-      /* Example instance
-        {
-            'ID': 'i-0574914ae3d265191',
-            'Instance Type': 'c5.4xlarge',
-            'Instance IP': '34.217.206.144',
-            'Upstream': '-',
-            'Type': 'nodeBackup',
-            'Status': 'active',
-            'Load Balancer': '-',
-            'Name': 'OM-backup-1',
-            'Usage': 'mainnet'
-        }
-      */
-      this.instances = {};
-
-      /* Example cacheNode
-        {
-            'CacheClusterId': 'oregon-redis-1-001',
-            'CacheNodeType': 'cache.r5.large',
-            'PreferredAvailabilityZone': 'us-west-2a',
-            'CacheNodeId': '0001',
-            'ReplicationGroupId': 'oregon-redis-1',
-            'Address': 'oregon-redis-1-001.hyv29s.0001.usw2.cache.amazonaws.com',
-            'Port': 6379,
-            'Metrics': {
-                'CPU': {
-                    'Timestamps': ['2019-03-19T20:32:00.000Z', '2019-03-19T20:31:00.000Z'],
-                    'Values': [1, 2]
-                },
-                'Freeable Memory': {
-                    'Timestamps': ['2019-03-19T20:32:00.000Z', '2019-03-19T20:31:00.000Z'],
-                    'Values': [6907920384, 6907940864]
-                }
-            }
-        }
-      */
-      this.cacheNodes = {};
-   }
-
    configParams(newRegion) {
        return {
            region: newRegion,
@@ -54,27 +14,8 @@ class AwsHandler {
        }
    }
 
-   // save instance locally
-   storeInstance(instance) {
-       console.log(instance)
-       this.instances[instance.Name] = instance;
-   }
-
-   // get single instance stored locally
-   getInstance(host) {
-       if (!this.instances[host]) {
-           return {'Instance IP': host};
-       }
-       return this.instances[host];
-   }
-
-   // get all EC2 instances stored locally
-   getAllInstances() {
-       return this.instances;
-   }
-
    // get all EC2 from AWS and store locally
-   getAllHosts(socket) {
+   getAllHosts(storeNode) {
        for (let regionOfInterest of Object.values(regions)) {
 
            let ec2 = new AWS.EC2(this.configParams(regionOfInterest));
@@ -84,20 +25,15 @@ class AwsHandler {
                 else {
                     for (let instance of data.Reservations) {
                         const tempInstance = this.parseInstance(instance);
-                        this.storeInstance(tempInstance);
-                        socket.emit('resAllHosts', tempInstance);
+                        storeNode(tempInstance);
                     }
                 }
             });
         }
     }
 
-   storeCacheNode(node) {
-       this.cacheNodes[node.CacheClusterId] = node;
-   }
-
    // get all cache nodes AWS and store locally
-   getAllCacheNodes(socket) {
+   getAllCacheNodes(storeNode) {
        for (let regionOfInterest of Object.values(regions)) {
 
            let elastiCache = new AWS.ElastiCache(this.configParams(regionOfInterest));
@@ -106,8 +42,7 @@ class AwsHandler {
                else {
                    for (let node of data.CacheClusters) {
                        const tempCacheNode = this.parseCacheNode(node)
-                       this.storeCacheNode(tempCacheNode);
-                       socket.emit('resAllCacheNodes', tempCacheNode);
+                       storeNode(tempCacheNode);
                    }
                 }
             });
@@ -178,39 +113,15 @@ class AwsHandler {
        }
    }
 
-   getCacheNodeById(cacheNodeId) {
-       if (!this.cacheNodes[cacheNodeId]) {
-           return undefined;
-       }
-       return this.cacheNodes[cacheNodeId];
-   }
-
-   updateCacheNode(cacheNodeMetrics, cacheNodeId) {
-        this.cacheNodes[cacheNodeId]['Metrics']['CPU']['Timestamps']
-            .push(cacheNodeMetrics['CPU']['Timestamps']);
-        this.cacheNodes[cacheNodeId]['Metrics']['CPU']['Values']
-            .push(cacheNodeMetrics['CPU']['Values']);
-        this.cacheNodes[cacheNodeId]['Metrics']['Freeable Memory']['Timestamps']
-            .push(cacheNodeMetrics['Freeable Memory']['Timestamps']);
-        this.cacheNodes[cacheNodeId]['Metrics']['Freeable Memory']['Values']
-            .push(cacheNodeMetrics['Freeable Memory']['Values']);
-   }
-
-    getCacheNodeMetrics(cacheNodeId, socket) {
-
-        let cacheNode = this.getCacheNodeById(cacheNodeId);
-        if (!cacheNode) {
-            socket.emit('resCacheNodeMetrics', 'Cache Node ' + cacheNodeId + ' does not exist.');
-            return;
-        }
+    getCacheNodeMetrics(cacheNodeId, updateCacheNode) {
         let cloudWatch = new AWS.CloudWatch(this.configParams('us-west-2'));
-        let params = this.configCacheNodeParams(cacheNode);
+        let params = this.configCacheNodeParams(cacheNodeId);
+
         cloudWatch.getMetricData(params, (err, data) => {
-            if (err) socket.emit('resCacheNodeMetrics', err);
+            if (err) updateCacheNode(err);
             else {
                 let cacheNodeMetrics = this.parseCacheNodeMetrics(data);
-                this.updateCacheNode(cacheNodeMetrics, cacheNodeId);
-                socket.emit('resCacheNodeMetrics', this.getCacheNodeById(cacheNodeId));
+                updateCacheNode(null, cacheNodeMetrics);
             }
         });
 
@@ -233,6 +144,8 @@ class AwsHandler {
 
    parseCacheNode(node) {
        return {
+           'Type': 'cacheNode',
+           'Name': node.CacheClusterId,
            'CacheClusterId': node.CacheClusterId,
            'CacheNodeType': node.CacheNodeType,
            'PreferredAvailabilityZone': node.PreferredAvailabilityZone,
