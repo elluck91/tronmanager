@@ -80,7 +80,10 @@ class Subscriber {
     }
 
     subscribeToCheckFullNodeHealth(updateClientView) {
-        this.socket.emit('resCheckFullNodeHealth', output => updateClientView(null, output));
+        this.socket.on('resCheckFullNodeHealth', async output => {
+            console.log('Got health report')
+            updateClientView(null, output)
+        });
     }
 
     checkFullNodeHealth(nodeId) {

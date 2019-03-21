@@ -98,7 +98,7 @@ class Terminal extends Component {
 
    handleCheckFullNodeHealth(event) {
        event.preventDefault();
-       this.clearOutput();
+       // this.clearOutput();
        this.sub.checkFullNodeHealth(this.state.ip)
    }
 

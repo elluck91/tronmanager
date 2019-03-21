@@ -79,38 +79,30 @@ server.on('connection', (socket) => {
    });
 
    // Latest block requested
-   socket.on('reqLatestBlock', (nodeId) => {
-       let latestBlock = trex.getLatestBlock(nodeId);
+   socket.on('reqLatestBlock', async (nodeId) => {
+       let latestBlock = await trex.getLatestBlock2(nodeId);
 
        if (!latestBlock) {
            socket.emit('resLatestBlock', {
                'id': nodeId,
                'status': 404
            })
+       } else {
+           socket.emit('resLatestBlock', {
+               'id': nodeId,
+               'status': 200,
+               'data': latestBlock
+           });
        }
-       socket.emit('resLatestBlock', {
-           'id': nodeId,
-           'status': 200,
-           'data': latestBlock
-       });
+
    });
 
-   socket.on('reqCheckFullNodeHealth', (nodeId) => {
-       const healthStatus = trex.checkFullNodeHealth(nodeId);
+   socket.on('reqCheckFullNodeHealth', async (nodeId) => {
+       const healthReport = await trex.checkFullNodeHealth(nodeId);
 
-       if (!healthStatus) {
-           socket.emit('resCheckFullNodeHealth', {
-               'id': nodeId,
-               'status': 404
-           })
-       } else if (healthStatus.isSick) {
-           trex.alertTronForce(healthStatus);
-       }
-       socket.emit('resCheckFullNodeHealth', {
-           'id': nodeId,
-           'status': 200,
-           'data': healthStatus
-       });
+       if (healthReport['is_healthy'])
+       socket.emit('resCheckFullNodeHealth', healthReport);
+       console.log('emitted message')
    });
 
    // Remote execution requested

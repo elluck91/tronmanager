@@ -1,9 +1,19 @@
 var exec = require('ssh-exec')
 const axios = require('axios');
 const fs = require('fs');
+const log4js = require('log4js');
+
+log4js.configure({
+  appenders: { log: { type: 'file', filename: 'nodemanager.log' } },
+  categories: { default: { appenders: ['log'], level: 'debug' } }
+});
+const logger = log4js.getLogger('default')
 
 class NodeManager {
     constructor() {
+        this.latest_known_block = 0;
+        this.latest_block_time = 0;
+
         /* Common properties of fullNode, eventron, blockParser, zoneProxy
         {
             'ID': 'i-0574914ae3d265191',
@@ -135,81 +145,112 @@ class NodeManager {
     //     });
     // }
 
-    async getLatestBlock(nodeId, callback = null) {
-        console.log('Attempting to get the latest block of:', nodeId)
-        if (!this.fullNodes[nodeId]) {
-            return undefined;
+    async getLatestBlock2(nodeId) {
+        try {
+            let url = 'http://' + this.fullNodes[nodeId]['Instance IP'] + "/wallet/getnowblock"
+            let block = await axios.get('http://' + this.fullNodes[nodeId]['Instance IP'] + "/wallet/getnowblock")
+            return {
+                'block_number': block.data.block_header.raw_data.number,
+                'block_time': block.data.block_header.raw_data.timestamp
+            }
+        } catch (e) {
+            console.log('error:', e)
+            return false;
         }
 
-        let block = await axios.get('http://' + this.fullNodes[nodeId]['Instance IP']
-            + "/wallet/getnowblock")
-        return block;
-        // .then(function (response) {
-        //     console.log('returning from getLatestBlock')
-        //     // handle success
-        //     return {
-        //         'number': response.data.block_header.raw_data.number,
-        //         'timestamp': response.data.block_header.raw_data.timestamp
-        //     }
-        // })
-        // .catch(error => {
-        //     return undefined;
-        // })
     }
 
-    checkFullNodeHealth(nodeId) {
-        if (!this.fullNodes[nodeId]) {
-            return undefined;
-        }
+    async getLatestBlock(healthReport) {
+        try {
+            let url = 'http://' + healthReport['node_ip'] + "/wallet/getnowblock"
+            logger.debug('getting block:', url)
+            let block = await axios.get('http://' + healthReport['node_ip'] + "/wallet/getnowblock")
+            logger.debug('Node ' + healthReport['node_name'] + ' returned a block.');
+            Object.assign(healthReport, {
+                'block_retrieved': true,
+                'block_number': block.data.block_header.raw_data.number,
+                'block_time': block.data.block_header.raw_data.timestamp
+            })
 
-        let healthStatus = {
-            'isSick': !this.isSyncing(nodeId)
-        }
+            if (healthReport['block_number'] > this.latest_known_block) {
+                this.latest_known_block = healthReport['block_number'];
+                this.latest_block_time = healthReport['block_time'];
+                healthReport['block_is_latest'] = true
+            } else {
+                healthReport['block_is_latest'] = false;
+            }
 
-        return healthStatus;
+        } catch (e) {
+            logger.debug(healthReport['node_name'] + ` did not return a block.`);
+            logger.debug(e);
+            Object.assign(healthReport, {
+                'block_retrieved': false,
+                'node_is_known': true
+            });
+        }
     }
 
-    isSyncing(nodeId) {
-        let blockNumbers = {};
-        for (let node in this.fullNodes) {
-            console.log('Checking:', node)
-            if (!node) {
-                continue;
-            }
-
-            this.getLatestBlock(node).then(result => {
-                console.log(result)
-            }
-
-            )
-
-            // tempBlock.then(temp => {
-            //     console.log('Attempting to read temp');
-            //     console.log(temp)
-            //     blockNumbers[node] = {
-            //         'timeSinceLatestBlock': new Date().getTime() - temp.timestamp,
-            //         'number': temp.number
-            //     }
-            //     console.log('Node:', node);
-            //     console.log(blockNumbers[node]);
-            // }).catch(err => {
-            //     console.log(err)
-            // })
+    async checkFullNodeHealth(nodeId) {
+        logger.debug('Checking health of full node \'' + nodeId + '\'');
+        let healthReport = {
+            'is_healthy': null,
+            'node_name': nodeId,
+            'node_is_known': null,
+            'node_ip': null,
+            'is_fullnode': null,
+            'block_retrieved': null,
+            'retrieval_time': new Date(),
+            'block_number': null,
+            'block_time': null,
+            'block_is_latest': null,
         }
 
+        await this.nodeIsFullNode(healthReport)
+        if (!healthReport['is_fullnode'])
+            return healthReport;
 
-        // if (blockNumbers[nodeId]['timeSinceLatestBlock'] > 5000) {
-        //     console.log('Not syncing:', blockNumbers[nodeId]['timeSinceLatestBlock']);
-        // }
-        //
-        // for (let node in blockNumbers) {
-        //     if (blockNumbers[nodeId]['number'] != node['number']) {
-        //         console.log('My block number:', blockNumbers[nodeId]['number']);
-        //         console.log(node, ' block number:', blockNumbers[node].number);
-        //     }
-        // }
+        logger.debug('1. Node is fullnode: 197')
 
-        return true;
+        await this.hasBlock(healthReport);
+        if (!healthReport['block_retrieved'])
+            return healthReport;
+
+        logger.debug('2. block retrieved: 203')
+
+        await this.isBlockLatest(healthReport)
+        if (!healthReport['block_is_latest'])
+            return healthReport;
+
+        logger.debug('3. block checked and is latest:', healthReport['block_is_latest'])
+
+        healthReport['is_healthy'] = true;
+        logger.debug("Node leaving doctor and is healthy:", healthReport['is_healthy'])
+
+        return healthReport;
+    }
+
+    async nodeIsFullNode(healthReport) {
+        healthReport['is_fullnode'] = Object.keys(this.fullNodes).includes(healthReport['node_name']);
+        if (healthReport['is_fullnode']) {
+            healthReport['node_is_known'] = true;
+            healthReport['node_ip'] = this.fullNodes[healthReport['node_name']]['Instance IP'];
+        }
+        return healthReport['is_fullnode'];
+    }
+
+    async hasBlock(healthReport) {
+        await this.getLatestBlock(healthReport);
+        if (!healthReport['block_retrieved']) {
+            healthReport['is_healthy'] = false;
+        }
+    }
+
+    async isBlockLatest(healthReport) {
+        healthReport['block_is_latest'] = this.latest_known_block == healthReport['block_number'];
+        if (!healthReport['block_is_latest']) {
+            healthReport['is_healthy'] = false;
+        }
+        logger.debug('returning from is block latest')
     }
 
     // Utilities
