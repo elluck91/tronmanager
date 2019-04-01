@@ -21,7 +21,7 @@ class AwsHandler {
            let ec2 = new AWS.EC2(this.configParams(regionOfInterest));
 
             ec2.describeInstances((err, data) => {
-                if (err) socket.emit('resAllHosts', err);
+                if (err) console.log(err);
                 else {
                     for (let instance of data.Reservations) {
                         const tempInstance = this.parseInstance(instance);
@@ -38,7 +38,7 @@ class AwsHandler {
 
            let elastiCache = new AWS.ElastiCache(this.configParams(regionOfInterest));
            elastiCache.describeCacheClusters(redisParams, (err, data) => {
-               if (err) socket.emit('resAllCacheNodes', err);
+               if (err) console.log(err);
                else {
                    for (let node of data.CacheClusters) {
                        const tempCacheNode = this.parseCacheNode(node)
@@ -113,9 +113,12 @@ class AwsHandler {
        }
    }
 
-    getCacheNodeMetrics(cacheNodeId, updateCacheNode) {
-        let cloudWatch = new AWS.CloudWatch(this.configParams('us-west-2'));
-        let params = this.configCacheNodeParams(cacheNodeId);
+    getCacheNodeMetrics(cacheNode, updateCacheNode) {
+        let region = cacheNode['PreferredAvailabilityZone'];
+        region = region.substring(0,region.length - 1)
+        console.log('Cache region:', region)
+        let cloudWatch = new AWS.CloudWatch(this.configParams(region));
+        let params = this.configCacheNodeParams(cacheNode);
 
         cloudWatch.getMetricData(params, (err, data) => {
             if (err) updateCacheNode(err);
@@ -124,6 +127,7 @@ class AwsHandler {
                 updateCacheNode(null, cacheNodeMetrics);
             }
         });
+
 
     }
 

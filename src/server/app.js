@@ -2,6 +2,7 @@ var app = require('express')();
 var http = require('http').createServer(app);
 var aws = require('./API/awsHandler');
 var trex = require('./API/nodeManager');
+var harbinger = require('./helpers/harbinger');
 
 // Socket for continuous stream of cmd output
 const server = require('socket.io')(http)
@@ -10,15 +11,15 @@ server.on('connection', (socket) => {
     console.log('user connected')
 
    // Request info about all hosts
-   socket.on('reqAllHosts', () => {
+   socket.on('reqAllHosts', (showOutput) => {
       aws.getAllHosts((node) => {
           trex.storeNode(node);
-          socket.emit('resAllHosts', node);
+          if (showOutput) socket.emit('resAllHosts', node);
       });
 
       aws.getAllCacheNodes((node) => {
           trex.storeNode(node);
-          socket.emit('resAllHosts', node);
+          if (showOutput) socket.emit('resAllHosts', node);
       })
    });
 
@@ -38,44 +39,57 @@ server.on('connection', (socket) => {
        socket.emit('resZoneProxies', trex.getZoneProxies());
    })
 
-   socket.on('reqCacheNodes', () => {
-       socket.emit('resCacheNodes', trex.getCacheNodes())
+   socket.on('reqCacheNodes', async () => {
+       console.log('requesting cache nodes')
+       let cacheNodes = await trex.getCacheNodes();
+       console.log('App got cache nodes:', cacheNodes);
+       socket.emit('resCacheNodes', cacheNodes)
    })
 
    // Request cacheNode metrics
-   socket.on('reqCacheNodeMetrics', (cacheNodeId) => {
-
-       aws.getCacheNodeMetrics(cacheNodeId, (err, nodeMetrics) => {
-           if (err) {
-               socket.emit('resCacheNodeMetrics', {
-                   'id': cacheNodeId,
-                   'status': 404,
-               });
-           } else {
-               socket.emit('resCacheNodeMetrics', {
-                   'id': cacheNodeId,
-                   'status': 200,
-                   'data': trex.updateCacheNode(cacheNodeId, nodeMetrics)
-               });
-           }
-       });
+   socket.on('reqCacheNodeMetrics', (nodeName) => {
+       if (!trex.getNodeByName(nodeName, 'cachenode')) {
+           socket.emit('resCacheNodeMetrics', {
+               'id': nodeName,
+               'status': 404,
+               'data': 'Unknown cache node.'
+           })
+       } else {
+           aws.getCacheNodeMetrics(trex.getNodeByName(nodeName, 'cachenode'), (err, nodeMetrics) => {
+               if (err) {
+                   socket.emit('resCacheNodeMetrics', {
+                       'id': nodeName,
+                       'status': 404,
+                       'data': err
+                   });
+               } else {
+                   socket.emit('resCacheNodeMetrics', {
+                       'id': nodeName,
+                       'status': 200,
+                       'data': trex.updateCacheNode(nodeName, nodeMetrics)
+                   });
+               }
+           });
+       }
    });
 
    // Metrics requested
    socket.on('reqTopProcessesBy', (nodeId) => {
-       let topProcesses = trex.getTopProcessesBy('CPU', nodeId);
-       if (!topProcesses) {
-           socket.emit('resTopProcessesBy', {
-               'id': nodeId,
-               'status': 404
-           });
-       } else {
-           socket.emit('resTopProcessesBy', {
-               'id': nodeId,
-               'status': 200,
-               'data': latestBlock
-           });
-       }
+       trex.getTopProcessesBy('CPU', nodeId, (err, response) => {
+           if (err) {
+               socket.emit('resTopProcessesBy', {
+                   'id': nodeId,
+                   'status': 404,
+                   'data': err
+               })
+           } else {
+               socket.emit('resTopProcessesBy', {
+                   'id': nodeId,
+                   'status': 200,
+                   'data': response
+               });
+           }
+       });
    });
 
    // Latest block requested
@@ -97,18 +111,43 @@ server.on('connection', (socket) => {
 
    });
 
+   // FULL NODE HEALTH CHECK
    socket.on('reqCheckFullNodeHealth', async (nodeId) => {
        const healthReport = await trex.checkFullNodeHealth(nodeId);
 
-       if (healthReport['is_healthy'])
+       if (healthReport['is_healthy'] != false) {
+           harbinger.alertTronForce(healthReport);
+       }
        socket.emit('resCheckFullNodeHealth', healthReport);
-       console.log('emitted message')
+   });
+
+   // CACHE NODE HEALTH CHECK
+   socket.on('reqCheckCacheNodeHealth', async (nodeId) => {
+       const healthReport = await trex.checkCacheNodeHealth(nodeId);
+
+       if (healthReport['is_healthy'] != false) {
+           harbinger.alertTronForce(healthReport);
+       }
+       socket.emit('resCheckCacheNodeHealth', healthReport);
    });
 
    // Remote execution requested
    socket.on('reqExecuteCmd', (data) => {
-       let ip_addr = aws.getInstance(data.ip);
-       trex.customExecuteCmd(data.cmd, ip_addr['Instance IP'], socket);
+       trex.customExecuteCmd(data.cmd, data.ip, (err, response) => {
+           if (err) {
+               socket.emit('resExecuteCmd', {
+               'id': data.ip,
+               'status': 404,
+               'data': err.toString()
+           })} else {
+               socket.emit('resExecuteCmd', {
+                   'id': data.ip,
+                   'status': 200,
+                   'data': response
+               })
+           }
+
+       });
    });
 
    socket.on('disconnect', function(){

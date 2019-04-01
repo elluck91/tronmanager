@@ -1,6 +1,5 @@
-import React from 'react';
 import ReactDOM from 'react-dom';
-import './client/stylesheets/index.css';
+import React from 'react';
 import Terminal from './client/components/Terminal';
 import * as serviceWorker from './serviceWorker';
 

@@ -76,18 +76,19 @@ class NodeManager {
     }
 
     getCacheNodes() {
+        console.log('returning cache Nodes')
         return this.cacheNodes;
     }
 
     updateCacheNode(cacheNodeId, nodeMetrics) {
          this.cacheNodes[cacheNodeId]['Metrics']['CPU']['Timestamps']
-             .push(cacheNodeMetrics['CPU']['Timestamps']);
+             .push(nodeMetrics['CPU']['Timestamps']);
          this.cacheNodes[cacheNodeId]['Metrics']['CPU']['Values']
-             .push(cacheNodeMetrics['CPU']['Values']);
+             .push(nodeMetrics['CPU']['Values']);
          this.cacheNodes[cacheNodeId]['Metrics']['Freeable Memory']['Timestamps']
-             .push(cacheNodeMetrics['Freeable Memory']['Timestamps']);
+             .push(nodeMetrics['Freeable Memory']['Timestamps']);
          this.cacheNodes[cacheNodeId]['Metrics']['Freeable Memory']['Values']
-             .push(cacheNodeMetrics['Freeable Memory']['Values']);
+             .push(nodeMetrics['Freeable Memory']['Values']);
 
          return this.cacheNodes[cacheNodeId];
      }
@@ -105,45 +106,37 @@ class NodeManager {
     }
 
     // Remote request to get top 5 processes sorted descendingly by CPU usage
-    getTopProcessesBy(metric, nodeId) {
-        if (!this.fullNodes[nodeId])
-            return undefined;
+    getTopProcessesBy(metric, nodeName, respond) {
+        if (!this.fullNodes[nodeName]) respond('Unknown node.');
+        else {
+            // linux distros prepend metrics with '%'
+            let m = metric == 'CPU' ? '%CPU' : '%MEM';
 
-        // linux distros prepend metrics with '%'
-        let m = metric == 'CPU' ? '%CPU' : '%MEM';
+            // top: displays information about processes
+            // -b: batch, -n 1: takes a snapshot of processes usage
+            // -o: sort descending, head -n 12: first 12 lines
+            // tail -5: last 5 lines, awk to get only relevant columns
+            var cmd = "top -b -n 1 -o " + m +
+            " | head -n 12 | tail -5 | awk '{ print $9,$10,$12 }'";
 
-        // top: displays information about processes
-        // -b: batch, -n 1: takes a snapshot of processes usage
-        // -o: sort descending, head -n 12: first 12 lines
-        // tail -5: last 5 lines, awk to get only relevant columns
-        var cmd = "top -b -n 1 -o " + m +
-        " | head -n 12 | tail -5 | awk '{ print $9,$10,$12 }'";
-
-        exec(cmd, this.config(this.fullNodes[nodeId]['Instance IP']),
-            (err, stdout, stderr) => {
-                if (err) {
-                    return undefined;
-                } else if (stdout) {
-                    return this.processPSOutput(stdout);
-                } else {
-                    return undefined;
+            exec(cmd, this.config(this.fullNodes[nodeName]['Instance IP']),
+                (err, stdout, stderr) => {
+                    if (err) respond(err);
+                    else if (stdout) respond(null, this.processPSOutput(stdout));
+                    else respond(null, stderr);
                 }
-            }
-        );
+            );
+        }
     }
 
-    // customExecuteCmd(cmd, ip, socket) {
-    //     exec(cmd, this.config(ip), (err, stdout, stderr) => {
-    //         if (err) {
-    //             socket.emit('resExecuteCmd', err.toString());
-    //         } else if (stdout) {
-    //             let processedData = this.processCmdOutput(stdout);
-    //             socket.emit('resExecuteCmd', this.processCmdOutput(stdout));
-    //         } else {
-    //             socket.emit('resExecuteCmd', stderr.toString());
-    //         }
-    //     });
-    // }
+    customExecuteCmd(cmd, nodeName, respond) {
+        let node = this.getNodeByName(nodeName);
+        exec(cmd, this.config(node['Instance IP']), (err, stdout, stderr) => {
+            if (err) respond(err);
+            else if (stdout) respond(null, this.processCmdOutput(stdout));
+            else respond(null, stderr);
+        });
+    }
 
     async getLatestBlock2(nodeId) {
         try {
@@ -191,13 +184,12 @@ class NodeManager {
     }
 
     async checkFullNodeHealth(nodeId) {
-        logger.debug('Checking health of full node \'' + nodeId + '\'');
         let healthReport = {
             'is_healthy': null,
             'node_name': nodeId,
             'node_is_known': null,
             'node_ip': null,
-            'is_fullnode': null,
+            'node_type': null,
             'block_retrieved': null,
             'retrieval_time': new Date(),
             'block_number': null,
@@ -206,39 +198,38 @@ class NodeManager {
         }
 
         await this.nodeIsFullNode(healthReport)
-        if (!healthReport['is_fullnode'])
+        if (healthReport['node_type'] != 'fullnode') {
+            healthReport['is_healthy'] = 'unknown';
             return healthReport;
-
-        logger.debug('1. Node is fullnode: 197')
+        }
 
         await this.hasBlock(healthReport);
         if (!healthReport['block_retrieved'])
             return healthReport;
 
-        logger.debug('2. block retrieved: 203')
-
         await this.isBlockLatest(healthReport)
         if (!healthReport['block_is_latest'])
             return healthReport;
 
-        logger.debug('3. block checked and is latest:', healthReport['block_is_latest'])
-
         healthReport['is_healthy'] = true;
-        logger.debug("Node leaving doctor and is healthy:", healthReport['is_healthy'])
 
         return healthReport;
     }
 
     async nodeIsFullNode(healthReport) {
-        healthReport['is_fullnode'] = Object.keys(this.fullNodes).includes(healthReport['node_name']);
-        if (healthReport['is_fullnode']) {
+        healthReport['node_type'] = Object.keys(this.fullNodes).includes(healthReport['node_name']) ? 'fullnode' : 'unknown';
+        console.log('218', healthReport['node_type'])
+        if (healthReport['node_type'] == 'fullnode') {
+            console.log('This is a full node')
             healthReport['node_is_known'] = true;
             healthReport['node_ip'] = this.fullNodes[healthReport['node_name']]['Instance IP'];
+        } else {
+            console.log('Node is not a full node.')
         }
-        return healthReport['is_fullnode'];
     }
 
     async hasBlock(healthReport) {
+        console.log('Checking if the node has a block.')
         await this.getLatestBlock(healthReport);
         if (!healthReport['block_retrieved']) {
             healthReport['is_healthy'] = false;
@@ -251,6 +242,60 @@ class NodeManager {
             healthReport['is_healthy'] = false;
         }
         logger.debug('returning from is block latest')
+    }
+
+    async checkCacheNodeHealth(nodeId) {
+        let healthReport = {
+            'is_healthy': null,
+            'node_name': nodeId,
+            'node_is_known': null,
+            'active': null,
+            'node_type': null,
+            'cpu_usage': null,
+            'cpu_healthy': null,
+            'memory_healthy': null,
+            'memory_usage': null
+        }
+
+        await this.nodeIsCacheNode(healthReport)
+        if (healthReport['node_type'] != 'cachenode')
+            return healthReport;
+
+        await this.hasRecentData(healthReport);
+        if (!healthReport['active'])
+            return healthReport;
+
+        await this.isDataGood(healthReport)
+        return healthReport;
+    }
+
+    nodeIsCacheNode(healthReport) {
+        healthReport['node_type'] = Object.keys(this.cacheNodes).includes(healthReport['node_name']) ? 'cachenode' : 'unknown';
+        healthReport['node_is_known'] = healthReport['node_type'] == 'cachenode' ? true : false;
+    }
+
+    hasRecentData(healthReport) {
+        const cpu = this.cacheNodes[healthReport['node_name']]['Metrics']['CPU']['Values'];
+        if (cpu) healthReport['cpu_usage'] = cpu[cpu.length - 1];
+        const memory = this.cacheNodes[healthReport['node_name']]['Metrics']['Freeable Memory']['Values'];
+        if (memory) healthReport['memory_usage'] = memory[memory.length - 1];
+
+        if (memory && cpu) {
+            let currentTime = new Date();
+            let timestamps = this.cacheNodes[healthReport['node_name']]['Metrics']['Freeable Memory']['Timestamps'];
+            healthReport['active'] = currentTime - timestamps[timestamps.length - 1] <= 300000
+        } else {
+            healthReport['active'] = false;
+        }
+    }
+
+    isDataGood(healthReport) {
+        let lastCpuMeasurement = this.cacheNodes[healthReport['node_name']]['Metrics']['CPU']['Values'];
+        healthReport['cpu_healthy'] = lastCpuMeasurement[lastCpuMeasurement.length - 1] < 10;
+        let lastMemoryMeasurement = this.cacheNodes[healthReport['node_name']]['Metrics']['Freeable Memory']['Values'];
+        healthReport['memory_healthy'] = lastMemoryMeasurement[lastMemoryMeasurement.length - 1] < 8000000000;
+
+        healthReport['is_healthy'] = healthReport['cpu_healthy'] && healthReport['memory_healthy'];
     }
 
     // Utilities
@@ -276,26 +321,31 @@ class NodeManager {
         return result.splice(0, result.length - 1);
     }
 
-    getNodeByName(nodeName, nodeType) {
+    getNodeByName(nodeName, nodeType = undefined) {
+        if (!nodeType) {
+            if (this.fullNodes.hasOwnProperty(nodeName)) return this.fullNodes[nodeName];
+            else if (this.zoneProxies.hasOwnProperty(nodeName)) return this.zoneProxies[nodeName];
+            else if (this.cacheNodes.hasOwnProperty(nodeName)) return this.cacheNodes[nodeName];
+        }
         switch(nodeType) {
             case 'fullnode':
-            return this.fullNodes[nodeName];
-            break;
+                return this.fullNodes[nodeName];
+                break;
             case 'eventron':
-            return this.eventrons[nodeName];
-            break;
-            case 'blockParser':
-            return this.blockParsers[nodeName];
-            break;
-            case 'zoneProxy':
-            return this.zoneProxies[nodeName];
-            break;
-            case 'cacheNode':
-            return this.cacheNodes[nodeName];
-            break;
+                return this.eventrons[nodeName];
+                break;
+            case 'blockparser':
+                return this.blockParsers[nodeName];
+                break;
+            case 'zoneproxy':
+                return this.zoneProxies[nodeName];
+                break;
+            case 'cachenode':
+                return this.cacheNodes[nodeName];
+                break;
             default:
-            return this.otherNodes[nodeName];
-            break;
+                return this.otherNodes[nodeName];
+                break;
         }
     }
 

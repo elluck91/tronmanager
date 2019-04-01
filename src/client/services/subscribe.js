@@ -9,8 +9,8 @@ class Subscriber {
        this.socket.on('resAllHosts', output => updateClientView(null, output));
     }
 
-    getAllHosts() {
-        this.socket.emit('reqAllHosts');
+    getAllHosts(showOutput = true) {
+        this.socket.emit('reqAllHosts', showOutput);
     }
 
     subscribeToFullNodes(updateClientView) {
@@ -46,10 +46,14 @@ class Subscriber {
     }
 
     subscribeToCacheNodes(updateClientView) {
-       this.socket.on('resCacheNodes', output => updateClientView(null, output));
+       this.socket.on('resCacheNodes', output => {
+           console.log('Subscriber got cacheNodes')
+           console.log(output)
+           updateClientView(null, output);
+       });
     }
 
-    getCacheNodes() {
+    getCacheNodes(showOutput = true) {
         this.socket.emit('reqCacheNodes');
     }
 
@@ -88,6 +92,16 @@ class Subscriber {
 
     checkFullNodeHealth(nodeId) {
         this.socket.emit('reqCheckFullNodeHealth', nodeId);
+    }
+
+    subscribeToCheckCacheNodeHealth(updateClientView) {
+        this.socket.on('resCheckCacheNodeHealth', async output => {
+            updateClientView(null, output)
+        });
+    }
+
+    checkCacheNodeHealth(nodeId) {
+        this.socket.emit('reqCheckCacheNodeHealth', nodeId);
     }
 
     subscribeToExecuteCmd(updateClientView) {

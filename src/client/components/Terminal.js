@@ -20,8 +20,10 @@ class Terminal extends Component {
       this.handleTopProcessesBy = this.handleTopProcessesBy.bind(this);
       this.handleAllHosts = this.handleAllHosts.bind(this);
       this.handleLatestBlock = this.handleLatestBlock.bind(this);
+      this.handleAllCacheNodes = this.handleAllCacheNodes.bind(this);
       this.handleCacheNodeMetrics = this.handleCacheNodeMetrics.bind(this);
       this.handleCheckFullNodeHealth = this.handleCheckFullNodeHealth.bind(this);
+      this.handleCheckCacheNodeHealth = this.handleCheckCacheNodeHealth.bind(this);
       this.handleAllFullNodes = this.handleAllFullNodes.bind(this);
 
       this.sub = new Subscriber();
@@ -31,7 +33,12 @@ class Terminal extends Component {
       this.sub.subscribeToLatestBlock(this.updateOutput);
       this.sub.subscribeToCacheNodeMetrics(this.updateOutput);
       this.sub.subscribeToCheckFullNodeHealth(this.updateOutput);
+      this.sub.subscribeToCheckCacheNodeHealth(this.updateOutput);
       this.sub.subscribeToFullNodes(this.updateOutput);
+      this.sub.subscribeToCacheNodes(this.updateOutput);
+
+      // get hosts when the app launches
+      this.sub.getAllHosts(false);
    }
 
    clearOutput() {
@@ -76,7 +83,7 @@ class Terminal extends Component {
 
    handleAllHosts() {
        this.clearOutput();
-       this.sub.getAllHosts()
+       this.sub.getAllHosts(true)
    }
 
    handleLatestBlock(event) {
@@ -98,8 +105,14 @@ class Terminal extends Component {
 
    handleCheckFullNodeHealth(event) {
        event.preventDefault();
-       // this.clearOutput();
+       this.clearOutput();
        this.sub.checkFullNodeHealth(this.state.ip)
+   }
+
+   handleCheckCacheNodeHealth(event) {
+       event.preventDefault();
+       this.clearOutput();
+       this.sub.checkCacheNodeHealth(this.state.ip)
    }
 
    handleAllFullNodes() {
@@ -139,14 +152,7 @@ class Terminal extends Component {
                getAllHosts
             </button>
 
-            {/* LatestBlock */}
-            <form onSubmit={this.handleLatestBlock}>
-                <label>
-                    Node Name:
-                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
-                </label>
-                <input type="submit" value="LatestBlock" />
-            </form>
+
 
             {/* AllCacheNodes */}
             <button onClick={this.handleAllCacheNodes}>
@@ -162,6 +168,15 @@ class Terminal extends Component {
                 <input type="submit" value="getCacheNodeMetrics" />
             </form>
 
+            {/* CheckCacheNodeHealth */}
+            <form onSubmit={this.handleCheckCacheNodeHealth}>
+                <label>
+                    Node Name:
+                    <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                </label>
+                <input type="submit" value="CheckCacheNodeHealth" />
+            </form>
+
             {/* CheckFullnodeHealth */}
             <form onSubmit={this.handleCheckFullNodeHealth}>
                 <label>
@@ -175,7 +190,15 @@ class Terminal extends Component {
             <button onClick={this.handleAllFullNodes}>
                getAllFullNodes
             </button>
-         </div>
+            {/* LatestBlock */}
+                <form onSubmit={this.handleLatestBlock}>
+                    <label>
+                        Node Name:
+                        <input type="text" value={this.state.ip} onChange={this.handleIpChange} />
+                    </label>
+                    <input type="submit" value="LatestBlock" />
+                </form>
+        </div>
       );
    }
 }
